@@ -1,0 +1,93 @@
+#!/bin/bash
+
+function usage()
+{
+  printf "\e[33m Usage: killex [-n/-p/-up] arg \n\tn  find process name and kill it.\
+  \n\tp  find use specified tcp port process and kill it.\
+  \n\tup find use specified udp port process and kill it.\e[0m \n"
+}
+
+function checkNum()
+{
+if [ -n "`echo ${1} | sed 's/[0-9]//g'`" ];then
+    echo "\e[33m Args must be integer!\e[0m"
+    return 1
+fi
+  return 0
+}
+
+function killByName()
+{
+  name=$1
+  ps_list_num=`ps -aux | grep ${name} | grep -v "grep" | grep -v "killex" | grep ${name} | wc -l`
+  if [ ${ps_list_num} -gt 1 ];then
+    echo "find some processes:"
+    echo "Pid  Name"
+    ps -aux | grep ${name} | grep -v "grep" | grep -v "killex" | awk '{ print $2,$11} | grep ${name}'
+    while read -p "Input Pid(support multi pid,use speace split.): " pid
+    do
+      checkNum ${pid}
+      [ $? == 0 ] && break || echo "\e[31m err,pid not number.\e[0m"
+    done
+    for p in ${pid}
+    do
+      kill -9 ${p}    
+      [ $? == 0 ] && echo "pid: "${p}" ,kill success." || echo "pid: "${p}" .kill failed."
+    done
+  elif [ ${ps_list_num} -eq 1 ];then
+    kill -9 `ps -aux | grep ${name} | grep -v "grep" | awk '{print $2,$11}' | grep ${name} | awk '{print $1}'`
+  else
+    echo "nothing to do."
+    usage
+  fi
+}
+
+function killByPort ()
+{
+  port=$2
+  if [ "$1" == "t" ];then
+    echo "port:"$port
+    pid=`netstat -atnp | grep "tcp" | grep -v "tcp6" | awk '{print $4,$7}' | awk -F ":" '{print $2}' | awk -v port="${port}" '$1==port { print $2}' | awk -F "/" '{print $1}'`
+    checkNum ${pid}
+    echo "pid:"${pid}
+    if [ $? != 0 ];then
+      echo "\e[31m err,pid not number.\e[0m" 
+      exit 1
+    fi
+    for p in ${pid}
+    do
+      kill -9 ${p}
+      [ $? == 0 ] && echo "pid: "${p}" ,kill success." || echo "pid: "${p}" .kill failed."
+    done
+else
+    echo "port:"$port
+    pid=`netstat -aunp | grep "udp" | grep -v "udp6" | awk '{print $4,$6}' | awk -F ":" '{print $2}' | awk -v port="${port}" '$1==port { print $2}' | awk -F "/" '{print $1}'`
+    echo "pid:"${pid}
+    checkNum ${pid}
+    #[ $? == 0 ] && echo "" || echo "err,pid not number.";exit 1
+    if [ $? != 0 ];then
+      echo "\e[31m err,pid not number.\e[0m" 
+      exit 1
+    fi
+    for p in ${pid}
+    do
+      kill -9 ${p}
+      [ $? == 0 ] && echo "pid: "${p}" ,kill success." || echo "pid: "${p}" .kill failed."
+    done
+  fi
+}
+
+
+if [ $# -gt 1 ];then
+  if [[ "$1" == [-][nN] ]] || [[ "$1" == [nN] ]];then
+    killByName $2
+  elif [[ "$1" == [-][pP] ]] || [[ "$1" == [pP] ]];then
+    killByPort "t" $2
+  elif [[ "$1" == [-][uU][pP] ]];then
+    killByPort "u" $2
+  else
+    usage
+  fi
+else
+  usage
+fi
